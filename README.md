@@ -25,6 +25,7 @@ The Databricks MCP Server exposes the following tools:
 - **list_files**: List files and directories in a DBFS path
 - **execute_sql**: Execute a SQL statement
 - **ping_endpoints**: Verify if an endpoint is responding
+- **list_genie_spaces**: List all available Genie Spaces configured in the .env
 - **genie_ask**: Ask Genie a natural language question
 - **genie_start_conversation**: Starts a new conversation in a Databricks Genie Space
 - **genie_send_message**: Send a follow-up message in an existing Genie conversation
@@ -74,6 +75,7 @@ The Databricks MCP Server exposes the following tools:
    # Install development dependencies
    uv pip install -e ".[dev]"
    ```
+4. Create an `.env` file based on the `.env.example` template
 
 ## Claude Cowork Configuration 
 
