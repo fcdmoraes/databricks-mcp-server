@@ -17,7 +17,9 @@ from mcp.server import FastMCP
 from mcp.types import TextContent
 from mcp.server.stdio import stdio_server
 
-from src.api import clusters, dbfs, jobs, notebooks, sql
+from src.api import clusters, dbfs, jobs, notebooks, sql, genie
+from src.core.utils import make_api_request
+from src.core.config import get_genie_spaces
 from src.core.config import settings
 
 # Configure logging
@@ -228,6 +230,16 @@ class DatabricksMCPServer(FastMCP):
 
         # Genie Space tools
         @self.tool(
+            name="list_genie_spaces",
+            description="List all available Genie Spaces configured in this server, with their names and descriptions. Use this to decide which space to query before calling genie_ask.",
+        )
+        async def list_genie_spaces(params: Dict[str, Any]) -> List[TextContent]:
+            spaces = get_genie_spaces()
+            if not spaces:
+                return [{"text": json.dumps({"message": "No Genie Spaces configured. Add GENIE_SPACE_<N>_ID, GENIE_SPACE_<N>_NAME and optionally GENIE_SPACE_<N>_DESCRIPTION to your .env file."})}]
+            return [{"text": json.dumps({"spaces": spaces})}]
+
+        @self.tool(
             name="genie_ask",
             description="Ask a natural language question to a Databricks Genie Space and wait for the response. Parameters: space_id (required), question (required), poll_timeout (optional, seconds, default 60)",
         )
@@ -293,6 +305,7 @@ class DatabricksMCPServer(FastMCP):
             except Exception as e:
                 logger.error(f"Error getting Genie message: {str(e)}")
                 return [{"text": json.dumps({"error": str(e)})}]
+
 
 async def main():
     """Main entry point for the MCP server."""

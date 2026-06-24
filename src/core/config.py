@@ -3,7 +3,8 @@ Configuration settings for the Databricks MCP server.
 """
 
 import os
-from typing import Any, Dict, Optional
+import re
+from typing import Any, Dict, List, Optional
 
 # Import dotenv if available, but don't require it
 try:
@@ -57,6 +58,38 @@ class Settings(BaseSettings):
 # Create global settings instance
 settings = Settings()
 
+def get_genie_spaces() -> List[Dict[str, str]]:
+    """
+    Load Genie Space registry from environment variables.
+
+    Reads variables in the pattern:
+        GENIE_SPACE_<N>_ID
+        GENIE_SPACE_<N>_NAME
+        GENIE_SPACE_<N>_DESCRIPTION  (optional)
+
+    Returns a list of dicts ordered by N, e.g.:
+        [{"id": "...", "name": "vendas", "description": "Vendas B2C..."}]
+    """
+    spaces: Dict[int, Dict[str, str]] = {}
+
+    for key, value in os.environ.items():
+        match = re.match(r"^GENIE_SPACE_(\d+)_(ID|NAME|DESCRIPTION)$", key)
+        if match:
+            n = int(match.group(1))
+            field = match.group(2).lower()
+            spaces.setdefault(n, {})[field] = value
+
+    result = []
+    for n in sorted(spaces):
+        space = spaces[n]
+        if "id" in space and "name" in space:
+            result.append({
+                "id": space["id"],
+                "name": space["name"],
+                "description": space.get("description", ""),
+            })
+
+    return result
 
 def get_api_headers() -> Dict[str, str]:
     """Get headers for Databricks API requests."""
