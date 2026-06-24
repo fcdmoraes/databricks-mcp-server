@@ -75,6 +75,7 @@ The Databricks MCP Server exposes the following tools:
    # Install development dependencies
    uv pip install -e ".[dev]"
    ```
+   
 4. Create an `.env` file based on the `.env.example` template
 
 ## Claude Cowork Configuration 
