@@ -7,7 +7,11 @@ import logging
 from typing import Any, Dict, List, Optional, Union
 
 import requests
+import urllib3
 from requests.exceptions import RequestException
+
+# Suppress SSL warnings for POC environment with self-signed certificates
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 from src.core.config import get_api_headers, get_databricks_api_url
 
@@ -71,6 +75,7 @@ def make_api_request(
             params=params,
             data=json_data if not files else data,
             files=files,
+            verify=False, # Make the request (verify=False for POC — self-signed cert environment)
         )
         
         # Check for HTTP errors

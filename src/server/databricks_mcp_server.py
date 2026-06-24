@@ -23,8 +23,10 @@ from src.core.config import settings
 # Configure logging
 logging.basicConfig(
     level=getattr(logging, settings.LOG_LEVEL),
-    filename="databricks_mcp.log",
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.StreamHandler(sys.stderr),
+    ],
 )
 logger = logging.getLogger(__name__)
 
@@ -207,7 +209,90 @@ class DatabricksMCPServer(FastMCP):
             except Exception as e:
                 logger.error(f"Error executing SQL: {str(e)}")
                 return [{"text": json.dumps({"error": str(e)})}]
+            
+        # Utility tools
+        @self.tool(
+            name="ping_endpoint",
+            description="Test connectivity to a Databricks API endpoint. Parameters: path (required, e.g. '/api/2.0/mcp/sql'), method (optional, default 'GET').",
+        )
+        async def ping_endpoint(params: Dict[str, Any]) -> List[TextContent]:
+            logger.info(f"Pinging endpoint: {params}")
+            try:
+                result = make_api_request(
+                    method=params.get("method", "GET"),
+                    endpoint=params.get("path"),
+                )
+                return [{"text": json.dumps({"status": "ok", "response": result})}]
+            except Exception as e:
+                return [{"text": json.dumps({"status": "error", "detail": str(e)})}]
 
+        # Genie Space tools
+        @self.tool(
+            name="genie_ask",
+            description="Ask a natural language question to a Databricks Genie Space and wait for the response. Parameters: space_id (required), question (required), poll_timeout (optional, seconds, default 60)",
+        )
+        async def genie_ask(params: Dict[str, Any]) -> List[TextContent]:
+            logger.info(f"Genie ask with params: {params}")
+            try:
+                result = genie.ask_genie(
+                    space_id=params.get("space_id"),
+                    question=params.get("question"),
+                    poll_timeout=params.get("poll_timeout", 60),
+                )
+                return [{"text": json.dumps(result)}]
+            except Exception as e:
+                logger.error(f"Error calling Genie: {str(e)}")
+                return [{"text": json.dumps({"error": str(e)})}]
+
+        @self.tool(
+            name="genie_start_conversation",
+            description="Start a new conversation in a Databricks Genie Space. Parameters: space_id (required), question (required). Returns conversation_id and message_id for follow-up calls.",
+        )
+        async def genie_start_conversation(params: Dict[str, Any]) -> List[TextContent]:
+            logger.info(f"Genie start conversation with params: {params}")
+            try:
+                result = genie.start_conversation(
+                    space_id=params.get("space_id"),
+                    content=params.get("question"),
+                )
+                return [{"text": json.dumps(result)}]
+            except Exception as e:
+                logger.error(f"Error starting Genie conversation: {str(e)}")
+                return [{"text": json.dumps({"error": str(e)})}]
+
+        @self.tool(
+            name="genie_send_message",
+            description="Send a follow-up message in an existing Genie conversation. Parameters: space_id (required), conversation_id (required), message (required).",
+        )
+        async def genie_send_message(params: Dict[str, Any]) -> List[TextContent]:
+            logger.info(f"Genie send message with params: {params}")
+            try:
+                result = genie.create_message(
+                    space_id=params.get("space_id"),
+                    conversation_id=params.get("conversation_id"),
+                    content=params.get("message"),
+                )
+                return [{"text": json.dumps(result)}]
+            except Exception as e:
+                logger.error(f"Error sending Genie message: {str(e)}")
+                return [{"text": json.dumps({"error": str(e)})}]
+
+        @self.tool(
+            name="genie_get_message",
+            description="Get the status and result of a Genie message. Parameters: space_id (required), conversation_id (required), message_id (required).",
+        )
+        async def genie_get_message(params: Dict[str, Any]) -> List[TextContent]:
+            logger.info(f"Genie get message with params: {params}")
+            try:
+                result = genie.get_message(
+                    space_id=params.get("space_id"),
+                    conversation_id=params.get("conversation_id"),
+                    message_id=params.get("message_id"),
+                )
+                return [{"text": json.dumps(result)}]
+            except Exception as e:
+                logger.error(f"Error getting Genie message: {str(e)}")
+                return [{"text": json.dumps({"error": str(e)})}]
 
 async def main():
     """Main entry point for the MCP server."""

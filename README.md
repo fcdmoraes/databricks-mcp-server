@@ -24,6 +24,11 @@ The Databricks MCP Server exposes the following tools:
 - **export_notebook**: Export a notebook from the workspace
 - **list_files**: List files and directories in a DBFS path
 - **execute_sql**: Execute a SQL statement
+- **ping_endpoints**: Verify if an endpoint is responding
+- **genie_ask**: Ask Genie a natural language question
+- **genie_start_conversation**: Starts a new conversation in a Databricks Genie Space
+- **genie_send_message**: Send a follow-up message in an existing Genie conversation
+- **genie_get_message**: Get the status and result of a Genie message
 
 ## Installation
 
@@ -118,6 +123,39 @@ uv run scripts/show_clusters.py
 # View all notebooks
 uv run scripts/show_notebooks.py
 ```
+
+## Claude Cowork Configuration 
+
+### Register the MCP server into Claude Cowork
+
+In Claude Cowork access User > Settings > Developer
+
+Open the config file `claude_desktop_config.json`
+
+Add the databricks-mcp-server into mcpServers and fill the host address and the databricks token:
+
+```json
+  "mcpServers": {
+    "databricks": {
+      "command": "[PATH TO YOUR FOLDER]/databricks-mcp-server/.venv/bin/python",
+      "args": ["-m", "src.server.databricks_mcp_server"],
+      "env": {
+        "DATABRICKS_HOST": [HOST_ADDRESS],
+        "DATABRICKS_TOKEN": [DATABRICKS_TOKEN]
+      }
+    }
+  },
+```
+
+Restart Claude Cowork
+
+**important: Ensure your token give you access to the Genie Space and the Unity Cataloge**
+
+### Testing
+
+Ask Claude to verify if the MCP server is running
+
+
 
 ## Project Structure
 

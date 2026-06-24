@@ -10,7 +10,7 @@ try:
     from dotenv import load_dotenv
     # Load .env file if it exists
     load_dotenv()
-    print("Successfully loaded dotenv")
+    # print("Successfully loaded dotenv")
 except ImportError:
     print("WARNING: python-dotenv not found, environment variables must be set manually")
     # We'll just rely on OS environment variables being set manually
@@ -19,7 +19,7 @@ from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
 # Version
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 
 
 class Settings(BaseSettings):
