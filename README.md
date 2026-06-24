@@ -53,7 +53,7 @@ The Databricks MCP Server exposes the following tools:
 
 2. Clone the repository:
    ```bash
-   git clone https://github.com/JustTryAI/databricks-mcp-server.git
+   git clone https://github.com/fcdmoraes/databricks-mcp-server.git
    cd databricks-mcp-server
    ```
 
@@ -74,55 +74,6 @@ The Databricks MCP Server exposes the following tools:
    # Install development dependencies
    uv pip install -e ".[dev]"
    ```
-
-4. Set up environment variables:
-   ```bash
-   # Windows
-   set DATABRICKS_HOST=https://your-databricks-instance.azuredatabricks.net
-   set DATABRICKS_TOKEN=your-personal-access-token
-   
-   # Linux/Mac
-   export DATABRICKS_HOST=https://your-databricks-instance.azuredatabricks.net
-   export DATABRICKS_TOKEN=your-personal-access-token
-   ```
-
-   You can also create an `.env` file based on the `.env.example` template.
-
-## Running the MCP Server
-
-To start the MCP server, run:
-
-```bash
-# Windows
-.\start_mcp_server.ps1
-
-# Linux/Mac
-./start_mcp_server.sh
-```
-
-These wrapper scripts will execute the actual server scripts located in the `scripts` directory. The server will start and be ready to accept MCP protocol connections.
-
-You can also directly run the server scripts from the scripts directory:
-
-```bash
-# Windows
-.\scripts\start_mcp_server.ps1
-
-# Linux/Mac
-./scripts/start_mcp_server.sh
-```
-
-## Querying Databricks Resources
-
-The repository includes utility scripts to quickly view Databricks resources:
-
-```bash
-# View all clusters
-uv run scripts/show_clusters.py
-
-# View all notebooks
-uv run scripts/show_notebooks.py
-```
 
 ## Claude Cowork Configuration 
 
