@@ -73,7 +73,8 @@ def make_api_request(
             url=url,
             headers=headers,
             params=params,
-            data=json_data if not files else data,
+            json=data if (data and not files) else None,
+            data=data if files else None,
             files=files,
             verify=False, # Make the request (verify=False for POC — self-signed cert environment)
         )
@@ -96,9 +97,11 @@ def make_api_request(
         if hasattr(e, "response") and e.response is not None:
             try:
                 error_response = e.response.json()
-                error_msg = f"{error_msg} - {error_response.get('error', '')}"
+                detail = error_response.get('message')
+                error_msg = f"{error_msg} - {detail}"
             except ValueError:
                 error_response = e.response.text
+                error_msg = f"{error_msg} - {error_response}"
         
         # Log the error
         logger.error(f"API Error: {error_msg}", exc_info=True)

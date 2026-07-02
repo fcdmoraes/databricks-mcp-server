@@ -4,7 +4,7 @@ Configuration settings for the Databricks MCP server.
 
 import os
 import re
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 # Import dotenv if available, but don't require it
 try:
@@ -16,11 +16,10 @@ except ImportError:
     print("WARNING: python-dotenv not found, environment variables must be set manually")
     # We'll just rely on OS environment variables being set manually
 
-from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
 # Version
-VERSION = "0.2.0"
+VERSION = "1.0.0"
 
 
 class Settings(BaseSettings):
@@ -30,10 +29,21 @@ class Settings(BaseSettings):
     DATABRICKS_HOST: str = os.environ.get("DATABRICKS_HOST", "https://example.databricks.net")
     DATABRICKS_TOKEN: str = os.environ.get("DATABRICKS_TOKEN", "dapi_token_placeholder")
 
-    # Server configuration
-    SERVER_HOST: str = os.environ.get("SERVER_HOST", "0.0.0.0") 
-    SERVER_PORT: int = int(os.environ.get("SERVER_PORT", "8000"))
-    DEBUG: bool = os.environ.get("DEBUG", "False").lower() == "true"
+    # OAuth M2M authentication (client credentials)
+    # If both are defined, OAuth takes precedence over the PAT.
+    DATABRICKS_CLIENT_ID: str = ""
+    DATABRICKS_CLIENT_SECRET: str = ""
+
+    # MCP transport: "stdio" for Claude Desktop or "streamable-http" for HTTP transport
+    mcp_transport: str = "stdio"
+    mcp_host: str = "localhost"
+    mcp_port: int = 8000
+    mcp_path: str = "/mcp/"
+
+    # Connector description (used in the MCP server's instructions)
+    specialist_description: str = (
+        "Use this server to query and manage Databricks resources."
+    )
 
     # Logging
     LOG_LEVEL: str = os.environ.get("LOG_LEVEL", "INFO")
@@ -41,22 +51,48 @@ class Settings(BaseSettings):
     # Version
     VERSION: str = VERSION
 
-    @field_validator("DATABRICKS_HOST")
-    def validate_databricks_host(cls, v: str) -> str:
-        """Validate Databricks host URL."""
-        if not v.startswith(("https://", "http://")):
-            raise ValueError("DATABRICKS_HOST must start with http:// or https://")
-        return v
+    @property
+    def auth_type(self) -> str:
+        """Return 'oauth' or 'pat' depending on which credentials are configured."""
+        if self.DATABRICKS_CLIENT_ID and self.DATABRICKS_CLIENT_SECRET:
+            return "oauth"
+        return "pat"
 
     class Config:
         """Pydantic configuration."""
-
         env_file = ".env"
         case_sensitive = True
+        extra = "ignore"
 
 
 # Create global settings instance
-settings = Settings()
+settings = Settings(
+    specialist_description=os.environ.get(
+        "SPECIALIST_DESCRIPTION",
+        "Use this server to query and manage Databricks resources.",
+    )
+)
+
+# ---------------------------------------------------------------------------
+# OAuth token provider placeholder
+# ---------------------------------------------------------------------------
+
+_oauth_provider = None
+
+def _get_oauth_provider():
+    global _oauth_provider
+    if _oauth_provider is None:
+        from src.core.auth import OAuthTokenProvider
+        _oauth_provider = OAuthTokenProvider(
+            host=settings.DATABRICKS_HOST,
+            client_id=settings.DATABRICKS_CLIENT_ID,
+            client_secret=settings.DATABRICKS_CLIENT_SECRET,
+        )
+    return _oauth_provider
+
+# ---------------------------------------------------------------------------
+# Utility functions
+# ---------------------------------------------------------------------------
 
 def get_genie_spaces() -> List[Dict[str, str]]:
     """
@@ -92,11 +128,16 @@ def get_genie_spaces() -> List[Dict[str, str]]:
     return result
 
 def get_api_headers() -> Dict[str, str]:
-    """Get headers for Databricks API requests."""
-    return {
-        "Authorization": f"Bearer {settings.DATABRICKS_TOKEN}",
-        "Content-Type": "application/json",
-    }
+    """
+    Get headers for Databricks API requests.
+    
+    Uses OAuth token if configured, otherwise uses the PAT from settings.
+    """
+    if settings.auth_type == "oauth":
+        token = _get_oauth_provider().get_token()
+    else:
+        token = settings.DATABRICKS_TOKEN
+    return {"Authorization": f"Bearer {token}"}
 
 
 def get_databricks_api_url(endpoint: str) -> str:
@@ -112,8 +153,4 @@ def get_databricks_api_url(endpoint: str) -> str:
     # Ensure endpoint starts with a slash
     if not endpoint.startswith("/"):
         endpoint = f"/{endpoint}"
-
-    # Remove trailing slash from host if present
-    host = settings.DATABRICKS_HOST.rstrip("/")
-    
-    return f"{host}{endpoint}" 
+    return f"{settings.DATABRICKS_HOST.rstrip('/')}{endpoint}"

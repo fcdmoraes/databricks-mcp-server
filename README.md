@@ -1,13 +1,13 @@
 # Databricks MCP Server
 
-A Model Completion Protocol (MCP) server for Databricks that provides access to Databricks functionality via the MCP protocol. This allows LLM-powered tools to interact with Databricks clusters, jobs, notebooks, and more.
+A Model Context Protocol (MCP) server for Databricks, built on [FastMCP 3.x](https://gofastmcp.com/), that provides access to Databricks functionality via the MCP protocol. This allows LLM-powered tools (such as Claude Cowork) to interact with Databricks clusters, jobs, notebooks, SQL warehouses, and Genie Spaces.
 
 ## Features
 
-- **MCP Protocol Support**: Implements the MCP protocol to allow LLMs to interact with Databricks
-- **Databricks API Integration**: Provides access to Databricks REST API functionality
-- **Tool Registration**: Exposes Databricks functionality as MCP tools
-- **Async Support**: Built with asyncio for efficient operation
+- **MCP Protocol Support**: Built on FastMCP 3.x to expose Databricks functionality to LLMs
+- **Databricks API Integration**: Provides access to Databricks REST API functionality via plain `requests` calls
+- **Tool Registration**: Exposes Databricks functionality as MCP tools, organized under `src/tools/`
+- **Flexible Authentication**: Supports both Personal Access Tokens (PAT) and OAuth 2.0 client credentials (machine-to-machine)
 
 ## Available Tools
 
@@ -24,7 +24,7 @@ The Databricks MCP Server exposes the following tools:
 - **export_notebook**: Export a notebook from the workspace
 - **list_files**: List files and directories in a DBFS path
 - **execute_sql**: Execute a SQL statement
-- **ping_endpoints**: Verify if an endpoint is responding
+- **ping_endpoint**: Verify if an endpoint is responding
 - **list_genie_spaces**: List all available Genie Spaces configured in the .env
 - **genie_ask**: Ask Genie a natural language question
 - **genie_start_conversation**: Starts a new conversation in a Databricks Genie Space
@@ -86,7 +86,9 @@ In Claude Cowork access User > Settings > Developer
 
 Open the config file `claude_desktop_config.json`
 
-Add the databricks-mcp-server into mcpServers and fill the host address and the databricks token:
+Add the databricks-mcp-server into mcpServers. Two authentication options are supported — pick one and fill the corresponding `env` block.
+
+**Option 1: Personal Access Token (PAT)**
 
 ```json
   "mcpServers": {
@@ -101,9 +103,29 @@ Add the databricks-mcp-server into mcpServers and fill the host address and the 
   },
 ```
 
+**Option 2: OAuth 2.0 Client Credentials (M2M)**
+
+```json
+  "mcpServers": {
+    "databricks": {
+      "command": "[PATH TO YOUR FOLDER]/databricks-mcp-server/.venv/bin/python",
+      "args": ["-m", "src.server.databricks_mcp_server"],
+      "env": {
+        "DATABRICKS_HOST": [HOST_ADDRESS],
+        "DATABRICKS_CLIENT_ID": [CLIENT_ID],
+        "DATABRICKS_CLIENT_SECRET": [CLIENT_SECRET]
+      }
+    }
+  },
+```
+
+If both `DATABRICKS_TOKEN` and `DATABRICKS_CLIENT_ID`/`DATABRICKS_CLIENT_SECRET` are set, OAuth takes precedence.
+
+> Note: today the `env` block requires the credentials to be passed inline (as shown above). Pointing to an external `.env` file path from this config is not yet supported by the server — if you need that, the server would need to be extended to read a path such as `DATABRICKS_ENV_FILE` and load it explicitly.
+
 Restart Claude Cowork
 
-**important: Ensure your token give you access to the Genie Space and the Unity Cataloge**
+**important: Ensure your token/credentials give you access to the Genie Space and the Unity Catalog**
 
 ### Testing
 
@@ -118,13 +140,22 @@ databricks-mcp-server/
 ├── src/                             # Source code
 │   ├── __init__.py                  # Makes src a package
 │   ├── __main__.py                  # Main entry point for the package
-│   ├── main.py                      # Entry point for the MCP server
-│   ├── api/                         # Databricks API clients
+│   ├── main.py                      # CLI entry point (arg parsing + startup logging)
+│   ├── tools/                       # MCP tool functions, registered on the FastMCP server
+│   │   ├── clusters.py              # Cluster management tools
+│   │   ├── connectivity.py          # ping_endpoint / list_genie_spaces
+│   │   ├── dbfs.py                  # DBFS tools
+│   │   ├── genie.py                 # Genie Space tools
+│   │   ├── jobs.py                  # Job management tools
+│   │   ├── notebooks.py             # Notebook management tools
+│   │   └── sql.py                   # SQL execution tools
 │   ├── core/                        # Core functionality
+│   │   ├── auth.py                  # OAuth 2.0 (M2M) token provider
+│   │   ├── config.py                # Settings (Pydantic), PAT/OAuth selection, Genie registry
+│   │   └── utils.py                 # Shared HTTP request helper (make_api_request)
 │   ├── server/                      # Server implementation
-│   │   ├── databricks_mcp_server.py # Main MCP server
-│   │   └── app.py                   # FastAPI app for tests
-│   └── cli/                         # Command-line interface
+│   │   └── databricks_mcp_server.py # FastMCP instance + tool registration + entry point
+│   └── cli/                         # Command-line interface (start / list-tools / version)
 ├── tests/                           # Test directory
 ├── scripts/                         # Helper scripts
 │   ├── start_mcp_server.ps1         # Server startup script (Windows)
@@ -188,7 +219,7 @@ A minimum code coverage of 80% is the goal for the project.
 
 ## Documentation
 
-- API documentation is generated using Sphinx and can be found in the `docs/api` directory
+- Project notes are kept in the `docs/` directory
 - All code includes Google-style docstrings
 - See the `examples/` directory for usage examples
 

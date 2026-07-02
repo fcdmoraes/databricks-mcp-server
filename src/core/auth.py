@@ -3,69 +3,55 @@ Authentication functionality for the Databricks MCP server.
 """
 
 import logging
-from typing import Dict, Optional
+import threading
+import time
+from typing import Optional
 
-from fastapi import Depends, HTTPException, Security, status
-from fastapi.security import APIKeyHeader
+import requests
+import urllib3
 
-from src.core.config import settings
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
-# API key header scheme
-API_KEY_HEADER = APIKeyHeader(name="X-API-Key", auto_error=False)
-
-
-async def validate_api_key(api_key: Optional[str] = Security(API_KEY_HEADER)) -> Dict[str, str]:
+class OAuthTokenProvider:
     """
-    Validate API key for protected endpoints.
-    
-    Args:
-        api_key: The API key from the request header
-        
-    Returns:
-        Dictionary with authentication info
-        
-    Raises:
-        HTTPException: If authentication fails
-    """
-    # For now, we're using a simple token comparison
-    # In a production environment, you might want to use a database or more secure method
-    
-    # Check if API key is required in the current environment
-    if not settings.DEBUG:
-        if not api_key:
-            logger.warning("Authentication failed: Missing API key")
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Missing API key",
-                headers={"WWW-Authenticate": "ApiKey"},
-            )
-            
-        # In a real scenario, you would validate against a secure storage
-        # For demo purposes, we'll just check against an environment variable
-        # NEVER do this in production - use a proper authentication system!
-        valid_keys = ["test-api-key"]  # Replace with actual implementation
-        
-        if api_key not in valid_keys:
-            logger.warning("Authentication failed: Invalid API key")
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid API key",
-                headers={"WWW-Authenticate": "ApiKey"},
-            )
-    
-    # Return authentication info
-    return {"authenticated": True}
+    Get and refresh OAuth tokens for Databricks API access.
 
+    This class handles the retrieval and caching of OAuth tokens using the
+    client credentials flow. 
+    It automatically refreshes the token 60 s before expiration.
+    """
 
-def get_current_user():
-    """
-    Dependency to get current user.
-    
-    For future implementation of user-specific functionality.
-    Currently returns a placeholder.
-    """
-    # This would be expanded in a real application with actual user information
-    return {"username": "admin"} 
+    def __init__(self, host: str, client_id: str, client_secret: str) -> None:
+        self._host = host.rstrip("/")
+        self._client_id = client_id
+        self._client_secret = client_secret
+        self._token: Optional[str] = None
+        self._expires_at: float = 0.0
+        self._lock = threading.Lock()
+
+    def get_token(self) -> str:
+        """Return a valid access token, refreshing it if necessary."""
+        with self._lock:
+            if self._token and time.time() < self._expires_at - 60:
+                return self._token
+            return self._refresh()
+
+    def _refresh(self) -> str:
+        url = f"{self._host}/oidc/v1/token"
+        logger.debug("Refreshing OAuth M2M token")
+        response = requests.post(
+            url,
+            data={"grant_type": "client_credentials", "scope": "all-apis"},
+            auth=(self._client_id, self._client_secret),
+            verify=False,
+            timeout=30,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        self._token = payload["access_token"]
+        self._expires_at = time.time() + payload.get("expires_in", 3600)
+        logger.debug("OAuth token refreshed; expires in %ds", payload.get("expires_in", 3600))
+        return self._token

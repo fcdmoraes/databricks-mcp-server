@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "databricks-mcp-server"
-version = "0.2.0"
-description = "A Model Completion Protocol (MCP) server for Databricks"
+version = "1.0.0"
+description = "Multi-agent system for Databricks data analysis via MCP"
 authors = [
     {name = "MCP Server Team", email = "example@example.com"}
 ]
@@ -20,9 +20,12 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    "mcp[cli]>=1.2.0",
-    "httpx",
-    "databricks-sdk",
+    "fastmcp>=3.2.0",
+    "requests",
+    "urllib3",
+    "python-dotenv",
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
 ]
 
 [project.optional-dependencies]
@@ -36,8 +39,14 @@ dev = [
     "pytest-asyncio",
 ]
 
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
 [project.scripts]
-databricks-mcp = "src.cli.commands:main"
+databricks-mcp = "src.server.databricks_mcp_server:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src"] 
+
+[tool.uv]
+python-preference = "system"
