@@ -7,12 +7,14 @@ A Model Context Protocol (MCP) server for Databricks, built on [FastMCP 3.x](htt
 - **MCP Protocol Support**: Built on FastMCP 3.x to expose Databricks functionality to LLMs
 - **Databricks API Integration**: Provides access to Databricks REST API functionality via plain `requests` calls
 - **Tool Registration**: Exposes Databricks functionality as MCP tools, organized under `src/tools/`
-- **Flexible Authentication**: Supports both Personal Access Tokens (PAT) and OAuth 2.0 client credentials (machine-to-machine)
+- **Flexible Authentication**: Supports Personal Access Tokens (PAT), OAuth 2.0 client credentials (machine-to-machine), and OAuth U2M (user-to-machine) interactive login
 
 ## Available Tools
 
 The Databricks MCP Server exposes the following tools:
 
+- **start_auth**: Start the OAuth U2M interactive login flow and return the URL to authenticate in the browser
+- **check_auth**: Complete the U2M flow after the user logs in, exchanging the authorization code for a cached token
 - **list_clusters**: List all Databricks clusters
 - **create_cluster**: Create a new Databricks cluster
 - **terminate_cluster**: Terminate a Databricks cluster
@@ -86,7 +88,7 @@ In Claude Cowork access User > Settings > Developer
 
 Open the config file `claude_desktop_config.json`
 
-Add the databricks-mcp-server into mcpServers. Two authentication options are supported — pick one and fill the corresponding `env` block.
+Add the databricks-mcp-server into mcpServers. Three authentication options are supported — pick one and fill the corresponding `env` block.
 
 **Option 1: Personal Access Token (PAT)**
 
@@ -119,7 +121,25 @@ Add the databricks-mcp-server into mcpServers. Two authentication options are su
   },
 ```
 
-If both `DATABRICKS_TOKEN` and `DATABRICKS_CLIENT_ID`/`DATABRICKS_CLIENT_SECRET` are set, OAuth takes precedence.
+**Option 3: OAuth U2M (interactive user login)**
+
+Use this when you want to authenticate as yourself (for example, via corporate SSO / Azure AD) instead of a static token or service principal. Provide only the host and leave the credential variables out:
+
+```json
+  "mcpServers": {
+    "databricks": {
+      "command": "[PATH TO YOUR FOLDER]/databricks-mcp-server/.venv/bin/python",
+      "args": ["-m", "src.server.databricks_mcp_server"],
+      "env": {
+        "DATABRICKS_HOST": [HOST_ADDRESS]
+      }
+    }
+  },
+```
+
+With U2M, the first query triggers a `needs_auth` response. Ask Claude to authenticate: it calls `start_auth`, returns a login URL for you to open in the browser, and after you sign in and confirm, `check_auth` completes the exchange. The resulting OAuth token (and refresh token) is cached in `~/.databricks/token-cache.json` — the same format used by the Databricks CLI/SDK — and refreshed automatically when it expires. See [Authorize user access to Databricks with OAuth (U2M)](https://learn.microsoft.com/en-us/azure/databricks/dev-tools/auth/oauth-u2m) for background.
+
+**Authentication precedence:** the server selects the type automatically — OAuth M2M (if `DATABRICKS_CLIENT_ID`/`DATABRICKS_CLIENT_SECRET` are set) takes priority, then PAT (if `DATABRICKS_TOKEN` is set), and finally U2M (if none of the above are set).
 
 > Note: today the `env` block requires the credentials to be passed inline (as shown above). Pointing to an external `.env` file path from this config is not yet supported by the server — if you need that, the server would need to be extended to read a path such as `DATABRICKS_ENV_FILE` and load it explicitly.
 
@@ -142,6 +162,7 @@ databricks-mcp-server/
 │   ├── __main__.py                  # Main entry point for the package
 │   ├── main.py                      # CLI entry point (arg parsing + startup logging)
 │   ├── tools/                       # MCP tool functions, registered on the FastMCP server
+│   │   ├── auth_flow.py             # OAuth U2M PKCE interactive flow (start_auth / check_auth)
 │   │   ├── clusters.py              # Cluster management tools
 │   │   ├── connectivity.py          # ping_endpoint / list_genie_spaces
 │   │   ├── dbfs.py                  # DBFS tools
@@ -150,8 +171,8 @@ databricks-mcp-server/
 │   │   ├── notebooks.py             # Notebook management tools
 │   │   └── sql.py                   # SQL execution tools
 │   ├── core/                        # Core functionality
-│   │   ├── auth.py                  # OAuth 2.0 (M2M) token provider
-│   │   ├── config.py                # Settings (Pydantic), PAT/OAuth selection, Genie registry
+│   │   ├── auth.py                  # OAuth token providers: M2M (client credentials) + U2M (cache reader/refresh)
+│   │   ├── config.py                # Settings (Pydantic), PAT/OAuth/U2M selection, Genie registry
 │   │   └── utils.py                 # Shared HTTP request helper (make_api_request)
 │   ├── server/                      # Server implementation
 │   │   └── databricks_mcp_server.py # FastMCP instance + tool registration + entry point

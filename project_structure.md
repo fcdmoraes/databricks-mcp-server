@@ -5,6 +5,7 @@ databricks-mcp-server/
 │   ├── main.py                      # CLI entry point: arg parsing, logging setup, starts the server
 │   ├── tools/                       # MCP tool functions (plain Python functions, FastMCP 3.x style)
 │   │   ├── __init__.py              # Makes tools a package
+│   │   ├── auth_flow.py             # OAuth U2M PKCE interactive flow (start_auth / check_auth)
 │   │   ├── clusters.py              # Cluster management tools
 │   │   ├── connectivity.py          # ping_endpoint / list_genie_spaces
 │   │   ├── dbfs.py                  # DBFS tools
@@ -14,8 +15,8 @@ databricks-mcp-server/
 │   │   └── sql.py                   # SQL execution tools
 │   ├── core/                        # Core functionality
 │   │   ├── __init__.py              # Makes core a package
-│   │   ├── auth.py                  # OAuth 2.0 client-credentials (M2M) token provider
-│   │   ├── config.py                # Settings (Pydantic), PAT/OAuth selection, Genie Space registry
+│   │   ├── auth.py                  # OAuth token providers: M2M (client credentials) + U2M (token-cache reader/refresh)
+│   │   ├── config.py                # Settings (Pydantic), PAT/OAuth/U2M selection, Genie Space registry
 │   │   └── utils.py                 # Shared HTTP request helper (make_api_request) and error type
 │   ├── server/                      # Server implementation
 │   │   ├── __init__.py              # Makes server a package
@@ -26,8 +27,9 @@ databricks-mcp-server/
 │       └── commands.py              # CLI commands: start / list-tools / version
 ├── tests/                           # Test directory
 │   ├── __init__.py                  # Makes tests a package
+│   ├── test_auth_u2m.py             # OAuth U2M tests (PKCE, token cache, provider, check_auth)
 │   ├── test_clusters.py             # Cluster tool tests
-│   ├── test_config.py               # Genie Space registry (get_genie_spaces) tests
+│   ├── test_config.py               # Genie Space registry + auth_type selection tests
 │   ├── test_direct.py               # Direct tool-function tests (no MCP protocol)
 │   ├── test_genie.py                # Genie tool tests
 │   ├── test_mcp_client.py           # MCP client tests (legacy, skipped)

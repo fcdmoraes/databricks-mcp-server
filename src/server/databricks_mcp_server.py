@@ -9,11 +9,10 @@ via stdio and directly connecting to Databricks when tools are invoked.
 
 import logging
 import sys
-import os
 
 from fastmcp import FastMCP
 
-from src.tools import clusters, connectivity, dbfs, genie, jobs, notebooks, sql
+from src.tools import auth_flow, clusters, connectivity, dbfs, genie, jobs, notebooks, sql
 from src.core.config import settings
 
 # Configure logging
@@ -26,6 +25,10 @@ logging.basicConfig(
 )
 
 mcp = FastMCP("databricks-mcp", instructions=settings.specialist_description)
+
+# Interactive authentication flow (OAuth U2M PKCE)
+mcp.tool()(auth_flow.start_auth)
+mcp.tool()(auth_flow.check_auth)
 
 # Connectivity
 mcp.tool()(connectivity.ping_endpoint)

@@ -1,5 +1,6 @@
 """
-Unit tests for src/core/config.py — get_genie_spaces registry loader.
+Unit tests for src/core/config.py — get_genie_spaces registry loader and
+auth_type selection.
 """
 
 import os
@@ -7,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from src.core.config import get_genie_spaces
+from src.core.config import Settings, get_genie_spaces
 
 
 def _env(**kwargs):
@@ -113,3 +114,48 @@ def test_returned_dict_has_required_keys():
     with patch.dict(os.environ, env, clear=True):
         spaces = get_genie_spaces()
         assert set(spaces[0].keys()) == {"id", "name", "description"}
+
+
+# ---------------------------------------------------------------------------
+# auth_type selection and precedence
+#
+# The three credential fields are always passed explicitly. In pydantic-settings
+# init arguments outrank environment variables, so these tests are deterministic
+# regardless of the machine's environment or a local .env file.
+# ---------------------------------------------------------------------------
+
+def _settings(**overrides):
+    base = dict(
+        DATABRICKS_CLIENT_ID="",
+        DATABRICKS_CLIENT_SECRET="",
+        DATABRICKS_TOKEN="",
+    )
+    base.update(overrides)
+    return Settings(**base)
+
+
+def test_auth_type_oauth_when_client_credentials_set():
+    s = _settings(DATABRICKS_CLIENT_ID="cid", DATABRICKS_CLIENT_SECRET="secret")
+    assert s.auth_type == "oauth"
+
+
+def test_auth_type_pat_when_only_token_set():
+    assert _settings(DATABRICKS_TOKEN="dapiXXXX").auth_type == "pat"
+
+
+def test_auth_type_u2m_when_nothing_set():
+    assert _settings().auth_type == "u2m"
+
+
+def test_auth_type_oauth_takes_precedence_over_pat():
+    s = _settings(
+        DATABRICKS_CLIENT_ID="cid",
+        DATABRICKS_CLIENT_SECRET="secret",
+        DATABRICKS_TOKEN="dapiXXXX",
+    )
+    assert s.auth_type == "oauth"
+
+
+def test_auth_type_client_id_without_secret_is_not_oauth():
+    # Incomplete M2M credentials must not be treated as oauth.
+    assert _settings(DATABRICKS_CLIENT_ID="cid").auth_type == "u2m"
